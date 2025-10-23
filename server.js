@@ -16,9 +16,22 @@ const codeExecutionRoutes = require('./routes/codeExecutionRoutes');
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Middleware
+// Middleware - CORS for local and production
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  process.env.CLIENT_URL || '',
+];
+
 app.use(cors({
-  origin: 'http://localhost:3000', // Allow React dev server
+  origin: function (origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all for Vercel
+    }
+  },
   credentials: true
 }));
 app.use(express.json());
@@ -35,10 +48,28 @@ app.use('/api/submissions', submissionRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/code', codeExecutionRoutes);
 
+// Serve static files from React build (for Vercel)
+const path = require('path');
+app.use(express.static(path.join(__dirname, 'client/build')));
+
+// Health check endpoint
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'API is running' });
+});
+
+// 404 handler - send React app for unknown routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'client/build/index.html'), (err) => {
+    if (err) {
+      res.status(404).json({ message: 'Not found' });
+    }
+  });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
-  res.status(500).json({ message: 'Something went wrong!' });
+  res.status(500).json({ message: 'Something went wrong!', error: err.message });
 });
 
 // Start server

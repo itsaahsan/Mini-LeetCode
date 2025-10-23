@@ -1,8 +1,17 @@
 // Import axios
 import axios from 'axios';
 
-// Set base URL for development
-axios.defaults.baseURL = 'http://localhost:8080';
+// Set base URL dynamically based on environment
+const getBaseURL = () => {
+  // For production on Vercel
+  if (process.env.NODE_ENV === 'production') {
+    return window.location.origin;
+  }
+  // For local development
+  return 'http://localhost:8080';
+};
+
+axios.defaults.baseURL = getBaseURL();
 
 // Add request interceptor
 axios.interceptors.request.use(
