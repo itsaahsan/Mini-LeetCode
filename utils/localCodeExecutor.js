@@ -42,9 +42,19 @@ const languages = {
   }
 };
 
-const executeCode = async (code, language, input = '') => {
+const executeCode = async (code, language, testCases = []) => {
   if (!languages[language]) {
-    throw new Error('Unsupported language');
+    return {
+      success: false,
+      error: 'Unsupported language: ' + language
+    };
+  }
+
+  if (!testCases || testCases.length === 0) {
+    return {
+      success: false,
+      error: 'No test cases provided'
+    };
   }
 
   // Create a unique filename
@@ -55,62 +65,97 @@ const executeCode = async (code, language, input = '') => {
     // Check if language is available
     const isSetup = await languages[language].setup();
     if (!isSetup) {
-      throw new Error(`${language} is not properly set up on this system`);
+      return {
+        success: false,
+        error: `${language} is not installed on this system`
+      };
     }
 
     // Write code to file
     await fs.writeFile(filepath, code);
 
-    // Execute code
-    const result = await new Promise((resolve, reject) => {
-      const startTime = process.hrtime();
-      const process = spawn(languages[language].command, [filepath]);
-      let output = '';
-      let error = '';
+    // Run test cases
+    let allPassed = true;
+    let totalRuntime = 0;
+    let maxMemory = 0;
 
-      // Handle input if provided
-      if (input) {
-        process.stdin.write(input);
-        process.stdin.end();
-      }
+    for (const testCase of testCases) {
+      try {
+        const result = await new Promise((resolve, reject) => {
+          const startTime = process.hrtime();
+          const proc = spawn(languages[language].command, [filepath]);
+          let output = '';
+          let error = '';
 
-      process.stdout.on('data', (data) => {
-        output += data.toString();
-      });
+          // Handle input
+          if (testCase.input) {
+            proc.stdin.write(testCase.input.toString());
+            proc.stdin.end();
+          }
 
-      process.stderr.on('data', (data) => {
-        error += data.toString();
-      });
+          proc.stdout.on('data', (data) => {
+            output += data.toString();
+          });
 
-      process.on('close', (code) => {
-        const endTime = process.hrtime(startTime);
-        const runtime = endTime[0] * 1000 + endTime[1] / 1000000; // Convert to milliseconds
+          proc.stderr.on('data', (data) => {
+            error += data.toString();
+          });
 
-        resolve({
-          success: code === 0,
-          output: output.trim(),
-          error: error.trim(),
-          runtime: Math.round(runtime),
-          memory: process.memoryUsage().heapUsed / 1024 / 1024 // Convert to MB
+          proc.on('close', (code) => {
+            const endTime = process.hrtime(startTime);
+            const runtime = endTime[0] * 1000 + endTime[1] / 1000000;
+
+            resolve({
+              success: code === 0,
+              output: output.trim(),
+              error: error.trim(),
+              runtime: Math.round(runtime),
+              memory: 0
+            });
+          });
+
+          // Set timeout
+          setTimeout(() => {
+            proc.kill();
+            reject(new Error('Execution timed out'));
+          }, 5000);
         });
-      });
 
-      // Set timeout for execution (5 seconds)
-      setTimeout(() => {
-        process.kill();
-        reject(new Error('Execution timed out'));
-      }, 5000);
-    });
+        totalRuntime += result.runtime;
+        
+        // Check if output matches expected
+        const passed = result.output === testCase.expected.toString();
+        if (!passed) {
+          allPassed = false;
+          break;
+        }
+      } catch (error) {
+        return {
+          success: false,
+          error: error.message
+        };
+      }
+    }
 
-    return result;
+    return {
+      success: allPassed,
+      output: allPassed ? 'All tests passed' : 'Test failed',
+      error: allPassed ? '' : 'Output mismatch',
+      runtime: totalRuntime,
+      memory: maxMemory,
+      testResults: []
+    };
   } catch (error) {
-    throw error;
+    return {
+      success: false,
+      error: error.message
+    };
   } finally {
-    // Clean up temporary file
+    // Clean up
     try {
       await fs.unlink(filepath);
-    } catch (error) {
-      console.error('Error cleaning up temporary file:', error);
+    } catch (e) {
+      console.error('Cleanup error:', e);
     }
   }
 };

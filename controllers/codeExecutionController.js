@@ -7,56 +7,55 @@ const executeCodeWithTests = async (req, res) => {
   try {
     const { problemId, code, language } = req.body;
     
+    if (!problemId || !code || !language) {
+      return res.status(400).json({ message: 'Please provide problemId, code, and language' });
+    }
+
     // Get problem with test cases
     const problem = db.findProblemById(problemId);
     if (!problem) {
       return res.status(404).json({ message: 'Problem not found' });
     }
     
-    // Execute user code
+    // Execute user code against test cases
     const result = await executeCode(code, language, problem.testCases);
     
-    // Process test results
-    const allTestsPassed = result.passed;
-    const testCasesPassed = result.testResults.filter(r => r.passed).length;
-
-    // Update user score if all tests pass
-    if (allTestsPassed) {
-      const user = db.findUserById(req.user.id);
-      if (user) {
-        user.score = (user.score || 0) + (problem.points || 1);
-        user.problemsSolved = (user.problemsSolved || 0) + 1;
-        db.updateUser(user);
-      }
+    if (result.error) {
+      return res.status(400).json({
+        success: false,
+        error: result.error,
+        output: result.output,
+        runtime: result.runtime || 0
+      });
     }
-    
+
     // Create submission
     const submission = db.createSubmission({
       userId: req.user.id,
       problemId,
       code,
       language,
-      status: allTestsPassed ? 'Accepted' : 'Wrong Answer',
-      testCasesPassed,
-      totalTestCases: problem.testCases.length,
-      testResults: result.testResults,
+      status: result.success ? 'Accepted' : 'Wrong Answer',
       runtime: result.runtime || 0,
       memory: result.memory || 0
     });
     
     res.json({
       success: true,
-      allTestsPassed,
-      testCasesPassed,
-      totalTestCases: problem.testCases.length,
-      testResults: result.testResults,
+      status: result.success ? 'Accepted' : 'Wrong Answer',
+      output: result.output,
+      error: result.error,
       runtime: result.runtime || 0,
       memory: result.memory || 0,
-      submissionId: submission.id
+      submissionId: submission._id
     });
   } catch (error) {
     console.error('Code execution error:', error);
-    res.status(500).json({ message: 'Error executing code', error: error.message });
+    res.status(500).json({ 
+      success: false,
+      message: 'Error executing code', 
+      error: error.message 
+    });
   }
 };
 

@@ -19,7 +19,6 @@ const submitCode = async (req, res) => {
 
     // Create submission record
     const submission = {
-      id: Date.now().toString(),
       userId,
       problemId,
       code,
@@ -27,7 +26,7 @@ const submitCode = async (req, res) => {
       status: result.passed ? 'Accepted' : 'Failed',
       runtime: result.runtime,
       memory: result.memory || 0,
-      testCaseResults: result.testResults,
+      testCaseResults: result.testResults || [],
       submittedAt: new Date()
     };
 

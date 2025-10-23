@@ -18,22 +18,22 @@ const protect = async (req, res, next) => {
       // Get user from token
       const user = db.findUserById(decoded.id);
       if (!user) {
-        throw new Error('User not found');
+        return res.status(401).json({ message: 'User not found' });
       }
 
       // Remove password from user object
       const { password, ...userWithoutPassword } = user;
       req.user = userWithoutPassword;
 
-      next();
+      return next();
     } catch (error) {
       console.error(error);
-      res.status(401).json({ message: 'Not authorized, token failed' });
+      return res.status(401).json({ message: 'Not authorized, token failed' });
     }
   }
 
   if (!token) {
-    res.status(401).json({ message: 'Not authorized, no token' });
+    return res.status(401).json({ message: 'Not authorized, no token' });
   }
 };
 
