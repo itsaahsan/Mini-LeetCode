@@ -23,7 +23,7 @@ const submitCode = async (req, res) => {
       problemId,
       code,
       language,
-      status: result.passed ? 'Accepted' : 'Failed',
+      status: result.success ? 'Accepted' : 'Failed',
       runtime: result.runtime,
       memory: result.memory || 0,
       testCaseResults: result.testResults || [],
@@ -31,10 +31,10 @@ const submitCode = async (req, res) => {
     };
 
     // Save submission
-    db.createSubmission(submission);
+    const savedSubmission = db.createSubmission(submission);
 
     // Update user statistics if submission is accepted
-    if (result.passed) {
+    if (result.success) {
       const user = db.findUserById(userId);
       if (user) {
         if (!user.solvedProblems) user.solvedProblems = new Set();
@@ -46,7 +46,8 @@ const submitCode = async (req, res) => {
     }
 
     res.json({
-      ...submission,
+      _id: savedSubmission._id,
+      ...savedSubmission,
       testCases: result.testResults
     });
   } catch (error) {

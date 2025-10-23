@@ -160,56 +160,9 @@ const executeCode = async (code, language, testCases = []) => {
   }
 };
 
-const validateTestCases = async (code, language, testCases) => {
-  const results = [];
-  let totalRuntime = 0;
-  let maxMemory = 0;
 
-  for (const testCase of testCases) {
-    try {
-      const result = await executeCode(code, language, testCase.input);
-      
-      const passed = result.output === testCase.expected.toString();
-      totalRuntime += result.runtime;
-      maxMemory = Math.max(maxMemory, result.memory);
-
-      results.push({
-        passed,
-        runtime: result.runtime,
-        memory: result.memory,
-        output: result.output,
-        expected: testCase.expected,
-        error: result.error
-      });
-
-      if (!passed) {
-        return {
-          success: false,
-          error: `Test case failed. Expected: ${testCase.expected}, Got: ${result.output}`,
-          runtime: totalRuntime,
-          memory: maxMemory
-        };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error.message,
-        runtime: totalRuntime,
-        memory: maxMemory
-      };
-    }
-  }
-
-  return {
-    success: true,
-    runtime: Math.round(totalRuntime / testCases.length),
-    memory: maxMemory,
-    results
-  };
-};
 
 module.exports = {
   executeCode,
-  validateTestCases,
   supportedLanguages: Object.keys(languages)
 };
